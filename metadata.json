@@ -1,0 +1,6 @@
+{
+  "name": "YTMusicUltimate",
+  "description": "An iOS tweak project for YouTube Music, designed for rootless/rootful jailbreaks and IPA injection via GitHub Actions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

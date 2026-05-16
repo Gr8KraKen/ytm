@@ -1,0 +1,9 @@
+Package: com.yourname.ytmusicultimate
+Name: YTMusicUltimate
+Depends: mobilesubstrate
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: The ultimate YouTube Music tweak providing background playback and more.
+Maintainer: YourName
+Author: YourName
+Section: Tweaks

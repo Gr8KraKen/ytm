@@ -1,0 +1,95 @@
+name: Build and Inject IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: "Direct URL to a decrypted YouTube Music IPA"
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build Tweak & Inject
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          brew install ldid xz zstd
+
+      - name: Setup Theos
+        run: |
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
+        env:
+          THEOS: ~/theos
+
+      - name: Download iOS SDKs
+        run: |
+          git clone https://github.com/theos/sdks.git ~/theos/sdks
+
+      - name: Build Tweak (Rootless Deb)
+        run: |
+          export THEOS=~/theos
+          make package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
+        continue-on-error: true # Might fail if headers are missing, but we proceed
+
+      - name: Build Tweak (Rootful Deb)
+        run: |
+          export THEOS=~/theos
+          make clean
+          make package FINALPACKAGE=1
+
+      - name: Download Decrypted IPA
+        run: |
+          echo "Downloading IPA from provided URL..."
+          curl -L "${{ github.event.inputs.ipa_url }}" -o YTMusic.ipa
+          
+          echo "Validating downloaded file..."
+          if ! unzip -t YTMusic.ipa >/dev/null 2>&1; then
+            echo "::error::The downloaded file is not a valid IPA archive. Please check your URL."
+            exit 1
+          fi
+
+      - name: Setup Azule (Injection Tool)
+        run: |
+          git clone https://github.com/AlmightyHacking/Azule.git ~/Azule
+
+      - name: Inject Tweak into IPA
+        run: |
+          mkdir -p output
+          
+          # Find the rootful deb file built in the previous step
+          DEB_FILE=$(ls packages/*arm64*.deb | grep -v 'rootless' | head -n 1)
+          
+          if [ -z "$DEB_FILE" ]; then
+            echo "::error::Could not find compiled .deb package to inject."
+            exit 1
+          fi
+
+          echo "Injecting $DEB_FILE into YTMusic.ipa..."
+          ~/Azule/azule -i YTMusic.ipa -o output -n YTMusicUltimate -f $DEB_FILE
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: YTMusicUltimate-Builds
+          path: |
+            packages/*.deb
+            output/*.ipa
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "build-${{ github.run_number }}"
+          name: "YTMusicUltimate Build #${{ github.run_number }}"
+          files: |
+            packages/*.deb
+            output/*.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
